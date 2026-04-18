@@ -1,0 +1,6 @@
+{
+  "name": "Aura Music Player",
+  "description": "A modern, premium offline MP3 music player with mood syncing, emotion tagging, and smart memory play.",
+  "requestFramePermissions": ["microphone", "vibrate"],
+  "majorCapabilities": []
+}
