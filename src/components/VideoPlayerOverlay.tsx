@@ -8,17 +8,59 @@ import {
 import { cn } from '../lib/utils';
 import { triggerHaptic } from '../lib/haptics';
 import { motion, AnimatePresence } from 'motion/react';
+import { useShallow } from 'zustand/react/shallow';
+
+const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
+const VideoProgressBar = () => {
+  const { progress, duration, seekTo } = usePlayerStore(useShallow(state => ({
+    progress: state.progress,
+    duration: state.duration,
+    seekTo: state.seekTo
+  })));
+  
+  return (
+    <div className="flex items-center gap-4">
+      <span className="text-white text-sm font-medium w-12 text-right">{formatTime(progress)}</span>
+      <div 
+        className="flex-1 h-3 bg-white/20 rounded-full cursor-pointer relative overflow-hidden group"
+        onClick={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const p = (e.clientX - rect.left) / rect.width;
+          seekTo(p * duration);
+        }}
+      >
+        <div className="absolute inset-y-0 left-0 bg-primary w-full origin-left group-hover:bg-primary/90 transition-none" style={{ transform: `scaleX(${duration > 0 ? progress / duration : 0})` }} />
+      </div>
+      <span className="text-white/70 text-sm font-medium w-12">{formatTime(duration)}</span>
+    </div>
+  );
+};
 
 export function VideoPlayerOverlay() {
   const { 
     songs, currentSongId, isPlaying, setIsPlaying, 
-    progress, duration, setProgress,
+    progress,
+    duration, setProgress,
     setIsVideoUIOpen, videoAspectRatio, setVideoAspectRatio,
     playbackSpeed, setPlaybackSpeed,
     volume, setVolume, subtitleUrl, setSubtitleUrl,
     isLandscape, toggleOrientation, seekTo,
     brightness, setBrightness, nextSong
-  } = usePlayerStore();
+  } = usePlayerStore(useShallow(state => ({
+    songs: state.songs, currentSongId: state.currentSongId, isPlaying: state.isPlaying, setIsPlaying: state.setIsPlaying,
+    progress: state.progress,
+    duration: state.duration, setProgress: state.setProgress,
+    setIsVideoUIOpen: state.setIsVideoUIOpen, videoAspectRatio: state.videoAspectRatio, setVideoAspectRatio: state.setVideoAspectRatio,
+    playbackSpeed: state.playbackSpeed, setPlaybackSpeed: state.setPlaybackSpeed,
+    volume: state.volume, setVolume: state.setVolume, subtitleUrl: state.subtitleUrl, setSubtitleUrl: state.setSubtitleUrl,
+    isLandscape: state.isLandscape, toggleOrientation: state.toggleOrientation, seekTo: state.seekTo,
+    brightness: state.brightness, setBrightness: state.setBrightness, nextSong: state.nextSong
+  })));
   
   const currentSong = songs.find(s => s.id === currentSongId);
   const [showControls, setShowControls] = useState(true);
@@ -330,30 +372,8 @@ export function VideoPlayerOverlay() {
         </div>
 
         {/* Progress System */}
-        <div className="flex items-center gap-5">
-          <span className="text-white/60 font-mono text-xs w-12 text-center">{formatTime(progress)}</span>
-          <div className="flex-1 relative group h-12 flex items-center">
-            <div className="absolute inset-x-0 h-2 bg-white/10 rounded-full overflow-hidden">
-               <div 
-                className="h-full bg-primary relative shadow-[0_0_15px_rgba(255,100,50,0.6)]"
-                style={{ width: `${(progress / duration) * 100}%` }}
-               />
-            </div>
-            <input 
-              type="range"
-              min="0"
-              max={duration || 0}
-              value={progress}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                seekTo(val);
-              }}
-              className="absolute inset-x-0 w-full h-full opacity-0 cursor-pointer z-10"
-            />
-          </div>
-          <span className="text-white/60 font-mono text-xs w-12 text-center">{formatTime(duration)}</span>
-        </div>
+        <VideoProgressBar />
+
       </div>
 
       {/* Settings Modal (Simplified as a 3-dot Menu) */}

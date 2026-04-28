@@ -12,7 +12,7 @@ export function Visualizer() {
   const requestRef = useRef<number>();
 
   useEffect(() => {
-    const audioElement = document.getElementById('main-audio') as HTMLAudioElement;
+    const audioElement = document.getElementById('main-media') as HTMLMediaElement;
     if (!audioElement) return;
 
     if (!audioCtx) {
@@ -83,7 +83,7 @@ export function Visualizer() {
       ref={canvasRef} 
       width={300} 
       height={100} 
-      className="w-full h-24 opacity-50 mix-blend-multiply dark:mix-blend-screen"
+      className="w-full h-24 opacity-80"
     />
   );
 }

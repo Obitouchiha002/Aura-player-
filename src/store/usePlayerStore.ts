@@ -34,6 +34,7 @@ interface PlayerState {
   initStore: () => Promise<void>;
   setSongs: (songs: Song[]) => void;
   addSongs: (songs: Song[]) => void;
+  playSong: (song: Song) => void;                
   setCurrentSong: (id: string) => void;
   seekTo: (time: number) => void;
   setIsPlaying: (isPlaying: boolean) => void;
@@ -46,6 +47,7 @@ interface PlayerState {
   toggleDarkMode: () => void;
   toggleHaptics: () => void;
   setHapticIntensity: (intensity: 'light' | 'medium' | 'heavy') => void;
+  togglePlay: () => void;
   toggleFavorite: (id: string) => void;
   setMood: (mood: Mood | null) => void;
   
@@ -112,6 +114,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     saveSongsToDB(updated);
     return { songs: updated };
   }),
+  playSong: (song) => {
+    const { songs, addSongs, setCurrentSong, setIsPlaying } = get();
+    if (!songs.find(s => s.id === song.id)) {
+      addSongs([song]);
+    }
+    setCurrentSong(song.id);
+    setIsPlaying(true);
+  },
   setCurrentSong: (id) => {
     const state = get();
     const currentSong = state.songs.find(s => s.id === state.currentSongId);
@@ -162,6 +172,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     localStorage.setItem('aura_haptics', newEnabled.toString());
     return { hapticsEnabled: newEnabled };
   }),
+  togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
   setHapticIntensity: (intensity) => {
     localStorage.setItem('aura_haptic_intensity', intensity);
     set({ hapticIntensity: intensity });

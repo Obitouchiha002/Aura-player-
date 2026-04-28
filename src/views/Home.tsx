@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { Play, Plus, Music, Loader2, ChevronDown, Film } from 'lucide-react';
+import { Play, Plus, Music, Loader2, ChevronDown, Film, Clock } from 'lucide-react';
 import * as jsmediatags from 'jsmediatags/dist/jsmediatags.min.js';
 import { cn } from '../lib/utils';
 import { triggerHaptic } from '../lib/haptics';
@@ -19,8 +19,18 @@ export function Home() {
   const [isScanning, setIsScanning] = useState(false);
   const [showMoodSelector, setShowMoodSelector] = useState(false);
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
+  const [currentTime, setCurrentTime] = useState('');
 
   useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      // Format time in Asia/Kolkata timezone
+      const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+      setCurrentTime(timeStr);
+    };
+    updateTime();
+    const clockInterval = setInterval(updateTime, 60000); // Update once a minute
+
     const hour = new Date().getHours();
     if (hour < 12) {
       setGreeting(isVideoEnabled ? 'Good Morning Cinema' : 'Good Morning');
@@ -32,7 +42,9 @@ export function Home() {
       setGreeting(isVideoEnabled ? 'Late Night Show' : 'Good Evening');
       if (!currentMood) setMood(isVideoEnabled ? 'Horror 👻' : 'Night Vibes 🌙');
     }
-  }, [isVideoEnabled]);
+    
+    return () => clearInterval(clockInterval);
+  }, [isVideoEnabled, currentMood, setMood]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -57,6 +69,7 @@ export function Home() {
       const file = files[i];
       const isAudio = file.type.startsWith('audio/');
       const isVideo = file.type.startsWith('video/');
+      const isMassImport = files.length > 5;
       
       if (isAudio || isVideo) {
         // Check for duplicates based on name and size
@@ -80,65 +93,55 @@ export function Home() {
         }
 
         if (isAudio) {
-          try {
-            const tag = await readTags(file);
-            let coverArt;
-            let coverArtBlob;
-            let title = file.name.replace(/\.[^/.]+$/, "");
-            let artist = 'Local Music';
-            let album = 'Local Collection';
+          let title = file.name.replace(/\.[^/.]+$/, "");
+          let artist = 'Local Music';
+          let album = 'Local Collection';
+          let coverArt;
+          let coverArtBlob;
 
-            if (tag && tag.tags) {
-              title = tag.tags.title || title;
-              artist = tag.tags.artist || artist;
-              album = tag.tags.album || album;
+          // Skip heavy ID3 parsing for mass imports to prevent freezing low memory devices
+          if (!isMassImport) {
+            try {
+              const tag = await readTags(file);
+              if (tag && tag.tags) {
+                title = tag.tags.title || title;
+                artist = tag.tags.artist || artist;
+                album = tag.tags.album || album;
 
-              const picture = tag.tags.picture;
-              if (picture) {
-                const { data, format } = picture;
-                const byteArray = new Uint8Array(data);
-                
-                // Normalize format
-                let mimeType = format;
-                if (format === 'JPG' || format === 'JPEG') mimeType = 'image/jpeg';
-                else if (format === 'PNG') mimeType = 'image/png';
-                else if (mimeType && !mimeType.includes('/')) mimeType = `image/${mimeType.toLowerCase()}`;
-                else if (!mimeType) mimeType = 'image/jpeg';
+                const picture = tag.tags.picture;
+                if (picture) {
+                  const { data, format } = picture;
+                  const byteArray = new Uint8Array(data);
+                  
+                  let mimeType = format;
+                  if (format === 'JPG' || format === 'JPEG') mimeType = 'image/jpeg';
+                  else if (format === 'PNG') mimeType = 'image/png';
+                  else if (mimeType && !mimeType.includes('/')) mimeType = `image/${mimeType.toLowerCase()}`;
+                  else if (!mimeType) mimeType = 'image/jpeg';
 
-                coverArtBlob = new Blob([byteArray], { type: mimeType });
-                coverArt = URL.createObjectURL(coverArtBlob);
+                  coverArtBlob = new Blob([byteArray], { type: mimeType });
+                  coverArt = URL.createObjectURL(coverArtBlob);
+                }
               }
+            } catch (error) {
+              console.error("Error parsing metadata for", file.name, error);
             }
-
-            newSongs.push({
-              id: crypto.randomUUID(),
-              title,
-              artist,
-              album,
-              duration: 0,
-              url: URL.createObjectURL(file),
-              coverArt,
-              coverArtBlob,
-              file,
-              tags: [],
-              playCount: 0,
-              mediaType: 'audio'
-            });
-          } catch (error) {
-            console.error("Error parsing metadata for", file.name, error);
-            newSongs.push({
-              id: crypto.randomUUID(),
-              title: file.name.replace(/\.[^/.]+$/, ""),
-              artist: 'Local Music',
-              album: 'Local Collection',
-              duration: 0,
-              url: URL.createObjectURL(file),
-              file,
-              tags: [],
-              playCount: 0,
-              mediaType: 'audio'
-            });
           }
+
+          newSongs.push({
+            id: crypto.randomUUID(),
+            title,
+            artist,
+            album,
+            duration: 0,
+            url: URL.createObjectURL(file),
+            coverArt,
+            coverArtBlob,
+            file,
+            tags: [],
+            playCount: 0,
+            mediaType: 'audio'
+          });
         }
       }
     }
@@ -162,8 +165,12 @@ export function Home() {
   return (
     <div className="px-6 pt-12 pb-32 h-full overflow-y-auto no-scrollbar">
       <div className="max-w-5xl mx-auto">
-        <header className="mb-8 flex justify-between items-center relative">
-        <div>
+        <header className="mb-8 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center relative gap-4">
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2 mb-2 text-primary">
+            <Clock className="w-4 h-4" />
+            <span className="text-sm font-bold tracking-widest">{currentTime}</span>
+          </div>
           <h1 className="text-[32px] font-extrabold text-surface-foreground tracking-tight leading-none">{greeting}</h1>
           <p className="text-muted mt-2 font-medium text-sm">
             {isVideoEnabled ? "Which film to watch today?" : "Ready for some music?"}
@@ -217,7 +224,8 @@ export function Home() {
               className="bg-primary/10 hover:bg-primary/20 transition-colors rounded-[24px] p-6 flex flex-col items-center justify-center cursor-pointer text-primary shadow-soft text-center"
             >
               <Plus className="w-8 h-8 mb-2" />
-              <span className="font-semibold text-sm tracking-wide">Scan Folder</span>
+              <span className="font-semibold text-sm tracking-wide">Scan Entire Device</span>
+              <span className="text-[10px] opacity-70 mt-1 font-medium">Auto-Load Folders</span>
               <input 
                 type="file" 
                 multiple 

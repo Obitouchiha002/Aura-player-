@@ -10,7 +10,6 @@ const mediaSelector = (state: any) => {
     currentSongId: state.currentSongId,
     isPlaying: state.isPlaying,
     volume: state.volume,
-    progress: state.progress,
     duration: state.duration,
     playbackSpeed: state.playbackSpeed,
     isVideoUIOpen: state.isVideoUIOpen,
@@ -19,7 +18,6 @@ const mediaSelector = (state: any) => {
     isLandscape: state.isLandscape,
     isDarkMode: state.isDarkMode,
     currentMood: state.currentMood,
-    // Include derived properties to ensure reactivity when these specific values change
     currentSongUrl: currentSong?.url || '',
     currentSongFile: currentSong?.file || null,
     currentSongTitle: currentSong?.title || '',
@@ -33,13 +31,14 @@ const mediaSelector = (state: any) => {
 export const AudioEngine = memo(() => {
   const mediaRef = useRef<HTMLVideoElement>(null);
   const { 
-    currentSongId, isPlaying, volume, progress, duration, playbackSpeed, isVideoUIOpen, 
+    currentSongId, isPlaying, volume, duration, playbackSpeed, isVideoUIOpen, 
     videoAspectRatio, subtitleUrl, isLandscape, isDarkMode, currentMood,
     currentSongUrl, currentSongFile, currentSongTitle, currentSongArtist, currentSongAlbum, currentSongCoverArt, currentSongMediaType
   } = usePlayerStore(useShallow(mediaSelector));
 
   const { setProgress, setDuration, setIsLoading, nextSong, prevSong, setIsPlaying } = usePlayerStore.getState();
   const lastSavedProgress = useRef(0);
+  const lastMediaSessionUpdate = useRef(0);
 
   // Media Session Setup
   useEffect(() => {
@@ -145,16 +144,6 @@ export const AudioEngine = memo(() => {
     }
   }, [isPlaying]);
 
-  useEffect(() => {
-    if ('mediaSession' in navigator && mediaRef.current) {
-      navigator.mediaSession.setPositionState({
-        duration: duration || 0,
-        playbackRate: playbackSpeed || 1,
-        position: progress || 0,
-      });
-    }
-  }, [progress, duration, playbackSpeed]);
-
   // Volume & Speed Sync
   useEffect(() => {
     if (mediaRef.current) {
@@ -254,6 +243,20 @@ export const AudioEngine = memo(() => {
         if (currentTime - lastSavedProgress.current > 10 || currentTime < lastSavedProgress.current) {
           lastSavedProgress.current = currentTime;
           usePlayerStore.getState().updateSongData(currentSongId, { lastPosition: currentTime });
+        }
+        
+        // Throttled MediaSession sync without causing React re-renders
+        if ('mediaSession' in navigator && Math.abs(currentTime - lastMediaSessionUpdate.current) > 1) {
+          lastMediaSessionUpdate.current = currentTime;
+          try {
+            navigator.mediaSession.setPositionState({
+              duration: duration || 0,
+              playbackRate: playbackSpeed || 1,
+              position: currentTime,
+            });
+          } catch (e) {
+            // Ignore errors if duration isn't set yet
+          }
         }
       }}
       onLoadedMetadata={(e) => {

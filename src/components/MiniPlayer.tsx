@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, SkipForward, Music, Film } from 'lucide-react';
+import { Play, Pause, SkipForward, Music, Film, X } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
 import { triggerHaptic } from '../lib/haptics';
@@ -25,7 +25,7 @@ export function MiniPlayer({ onClick }: MiniPlayerProps) {
 
   return (
     <div 
-      className="fixed bottom-[88px] left-2 right-2 md:left-auto md:right-4 md:w-80 h-16 bg-surface/90 backdrop-blur-xl rounded-2xl shadow-lg border border-surface-foreground/5 flex items-center px-3 cursor-pointer z-40 overflow-hidden"
+      className="fixed bottom-[88px] left-2 right-2 md:left-auto md:right-4 md:w-80 h-16 bg-surface rounded-2xl shadow-lg border border-surface-foreground/5 flex items-center px-3 cursor-pointer z-40 overflow-hidden group"
       onClick={() => {
         triggerHaptic('light');
         onClick();
@@ -57,12 +57,12 @@ export function MiniPlayer({ onClick }: MiniPlayerProps) {
         )}
       </div>
       
-      <div className="ml-3 flex-1 min-w-0">
+      <div className="ml-3 flex-1 min-w-0 pr-1">
         <h4 className="text-sm font-semibold text-surface-foreground truncate">{currentSong.title}</h4>
         <p className="text-xs text-surface-foreground/60 truncate">{currentSong.artist}</p>
       </div>
       
-      <div className="flex items-center gap-2 ml-2">
+      <div className="flex items-center ml-auto">
         <button 
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-foreground/5 text-surface-foreground"
           onClick={(e) => {
@@ -82,6 +82,16 @@ export function MiniPlayer({ onClick }: MiniPlayerProps) {
           }}
         >
           <SkipForward className="w-5 h-5 fill-current" />
+        </button>
+        <button 
+          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500/10 text-surface-foreground hover:text-red-500 transition-colors opacity-80 hover:opacity-100 ml-1"
+          onClick={(e) => {
+            e.stopPropagation();
+            triggerHaptic('medium');
+            usePlayerStore.setState({ currentSongId: null, isPlaying: false, progress: 0 });
+          }}
+        >
+          <X className="w-4 h-4" />
         </button>
       </div>
     </div>
