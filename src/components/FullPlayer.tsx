@@ -1,4 +1,4 @@
-import { ChevronDown, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Heart, BookOpen, Plus, X, AlignLeft, Loader2, Edit3, Check, Music, Download, MoonStar, Clock, ChevronRight } from 'lucide-react';
+import { ChevronDown, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Heart, BookOpen, Plus, X, AlignLeft, Loader2, Edit3, Check, Music, Download, MoonStar, Clock, ChevronRight, Volume1, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
@@ -145,6 +145,10 @@ export function FullPlayer({ onClose }: FullPlayerProps) {
     if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 10) {
       let newVolume = initialVolume.current + (diffY / 200); // ~200px equivalent to 0-100% volume
       newVolume = Math.max(0, Math.min(1, newVolume));
+      
+      if (Math.abs(volume - newVolume) > 0.05) {
+         triggerHaptic('light');
+      }
       setVolume(newVolume);
       
       setShowVolumePopup(true);
@@ -153,7 +157,7 @@ export function FullPlayer({ onClose }: FullPlayerProps) {
       }
       volumePopupTimeoutDelay.current = window.setTimeout(() => {
         setShowVolumePopup(false);
-      }, 1000);
+      }, 1500);
     }
   };
 
@@ -563,17 +567,25 @@ export function FullPlayer({ onClose }: FullPlayerProps) {
           onTouchEnd={handleTouchEnd}
         >
           {/* Animated Volume Indicator */}
-          <div className={cn(
-            "absolute z-20 top-4 max-w-[200px] w-full bg-surface px-4 py-2 border border-surface-foreground/10 rounded-full flex flex-row items-center gap-3 transition-all duration-300 pointer-events-none shadow-lg",
-            showVolumePopup ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
-          )}>
-             <div className="text-surface-foreground">
-                {volume === 0 ? <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-volume-x"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" x2="17" y1="9" y2="15"/><line x1="17" x2="23" y1="9" y2="15"/></svg> : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-volume-2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>}
-             </div>
-             <div className="flex-1 h-1.5 bg-surface-foreground/20 rounded-full overflow-hidden">
-               <div className="h-full bg-primary transition-all duration-100" style={{ width: `${volume * 100}%` }}></div>
-             </div>
-          </div>
+          <AnimatePresence>
+            {showVolumePopup && (
+              <motion.div 
+                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                 animate={{ opacity: 1, y: 0, scale: 1 }}
+                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                 transition={{ duration: 0.2, ease: "easeOut" }}
+                 className="absolute z-30 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140px] bg-background/80 backdrop-blur-xl px-4 py-5 border border-surface-foreground/10 rounded-[32px] flex flex-col items-center gap-4 pointer-events-none shadow-2xl"
+              >
+                 <div className="text-primary bg-primary/10 p-3 rounded-full">
+                    {volume === 0 ? <VolumeX className="w-8 h-8" /> : volume > 0.5 ? <Volume2 className="w-8 h-8" /> : <Volume1 className="w-8 h-8" />}
+                 </div>
+                 <div className="w-full flex-1 h-1.5 bg-surface-foreground/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-primary transition-all duration-75" style={{ width: `${volume * 100}%` }}></div>
+                 </div>
+                 <div className="text-xs font-bold tracking-widest text-surface-foreground/60">{Math.round(volume * 100)}%</div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className={cn(
             "w-full max-w-[240px] sm:max-w-[400px] md:max-w-full aspect-square rounded-[24px] sm:rounded-[32px] md:rounded-[40px] shadow-soft overflow-hidden bg-[#EEEBE3] dark:bg-surface transition-transform duration-[600ms] mx-auto md:mx-0 ease-out",

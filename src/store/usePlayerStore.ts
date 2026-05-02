@@ -314,13 +314,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (!songs.length) return;
     
     if (repeatMode === 'one') {
-      set({ progress: 0 });
+      set({ progress: 0, isPlaying: true });
       return;
     }
 
     if (isShuffle) {
       const randomIndex = Math.floor(Math.random() * songs.length);
-      set({ currentSongId: songs[randomIndex].id, progress: 0 });
+      set({ currentSongId: songs[randomIndex].id, progress: 0, isPlaying: true });
       return;
     }
 
@@ -329,9 +329,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     
     const nextIndex = currentIndex + 1;
     if (nextIndex < songs.length) {
-      set({ currentSongId: songs[nextIndex].id, progress: 0 });
+      set({ currentSongId: songs[nextIndex].id, progress: 0, isPlaying: true });
     } else if (repeatMode === 'all') {
-      set({ currentSongId: songs[0].id, progress: 0 });
+      set({ currentSongId: songs[0].id, progress: 0, isPlaying: true });
     } else {
       set({ isPlaying: false, progress: 0 });
     }
@@ -342,15 +342,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     
     // If we're more than 3 seconds in, just restart the song
     if (progress > 3) {
-      set({ progress: 0 });
+      set({ progress: 0, isPlaying: true });
       return;
     }
 
     const currentIndex = songs.findIndex(s => s.id === currentSongId);
     if (currentIndex > 0) {
-      set({ currentSongId: songs[currentIndex - 1].id, progress: 0 });
+      set({ currentSongId: songs[currentIndex - 1].id, progress: 0, isPlaying: true });
     } else {
-      set({ currentSongId: songs[songs.length - 1].id, progress: 0 });
+      set({ currentSongId: songs[songs.length - 1].id, progress: 0, isPlaying: true });
     }
   },
   updateSongData: (id, data) => set((state) => {

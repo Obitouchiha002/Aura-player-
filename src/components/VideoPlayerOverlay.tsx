@@ -142,9 +142,11 @@ export function VideoPlayerOverlay() {
        const newValue = Math.max(0, Math.min(1, touchValueRef.current.initialValue + ratio));
        
        if (touchValueRef.current.type === 'left') {
+         if (Math.abs(brightness - newValue) > 0.05) triggerHaptic('light');
          setBrightness(newValue);
          setGestureOverlay({ type: 'brightness', value: Math.round(newValue * 100) + '%' });
        } else {
+         if (Math.abs(volume - newValue) > 0.05) triggerHaptic('light');
          setVolume(newValue);
          setGestureOverlay({ type: 'volume', value: Math.round(newValue * 100) + '%' });
        }

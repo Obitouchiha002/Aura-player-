@@ -25,6 +25,7 @@ export default function App() {
   const isVideoEnabled = usePlayerStore((s) => s.isVideoEnabled);
   const sleepTimerEndTime = usePlayerStore((s) => s.sleepTimerEndTime);
   const triggerShutdown = usePlayerStore((s) => s.triggerShutdown);
+  const isShutdown = usePlayerStore((s) => s.isShutdown);
   
   const currentSong = songs.find((s) => s.id === currentSongId);
 
@@ -38,6 +39,22 @@ export default function App() {
     }, 1000);
     return () => clearInterval(interval);
   }, [sleepTimerEndTime, triggerShutdown]);
+
+  // Handle Shutdown close app
+  useEffect(() => {
+    if (isShutdown) {
+      const timer = setTimeout(() => {
+        try {
+          window.close();
+        } catch (e) {
+          // ignore
+        }
+        // Fallback for browsers that block window.close()
+        window.location.href = 'about:blank';
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [isShutdown]);
 
   useEffect(() => {
     initStore();
@@ -103,9 +120,33 @@ export default function App() {
   }
 
   const isVideo = currentSong?.mediaType === 'video';
-
+      
   return (
     <div className="h-[100dvh] w-full bg-background text-foreground overflow-hidden relative font-sans selection:bg-primary/30">
+      
+      <AnimatePresence>
+        {isShutdown && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 2 }}
+            className="fixed inset-0 z-[500] flex flex-col items-center justify-center bg-black text-white"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 1, duration: 2 }}
+              className="flex flex-col items-center gap-6"
+            >
+              <div className="text-center space-y-2">
+                <h2 className="text-3xl font-bold tracking-widest uppercase">Good Night</h2>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Switching Mode Progress Bar Overlay */}
       <AnimatePresence>
         {isSwitchingMode && (

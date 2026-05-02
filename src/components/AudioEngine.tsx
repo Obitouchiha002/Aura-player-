@@ -234,7 +234,11 @@ export const AudioEngine = memo(() => {
           : "opacity-0 pointer-events-none z-0"
       )}
       onPlay={() => setIsPlaying(true)}
-      onPause={() => setIsPlaying(false)}
+      onPause={(e) => {
+        if (e.currentTarget.readyState >= 2) {
+          setIsPlaying(false);
+        }
+      }}
       onWaiting={() => {
         console.log("Media waiting/buffering...");
         // Removed aggressive setIsLoading(true) to avoid UI flicker
