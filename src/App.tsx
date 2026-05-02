@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MoonStar } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
 import { MiniPlayer } from './components/MiniPlayer';
 import { FullPlayer } from './components/FullPlayer';
@@ -23,8 +23,21 @@ export default function App() {
   const isLoading = usePlayerStore((s) => s.isLoading);
   const isSwitchingMode = usePlayerStore((s) => s.isSwitchingMode);
   const isVideoEnabled = usePlayerStore((s) => s.isVideoEnabled);
+  const sleepTimerEndTime = usePlayerStore((s) => s.sleepTimerEndTime);
+  const triggerShutdown = usePlayerStore((s) => s.triggerShutdown);
   
   const currentSong = songs.find((s) => s.id === currentSongId);
+
+  // Sleep Timer Check
+  useEffect(() => {
+    if (!sleepTimerEndTime) return;
+    const interval = setInterval(() => {
+      if (Date.now() >= sleepTimerEndTime) {
+        triggerShutdown();
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [sleepTimerEndTime, triggerShutdown]);
 
   useEffect(() => {
     initStore();
@@ -130,22 +143,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Global Loading Animation */}
-      <AnimatePresence>
-        {isLoading && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-none"
-          >
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin shadow-lg" />
-              <span className="text-white font-bold text-sm tracking-widest uppercase">Buffering</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {/* Main Content Area */}
       <main className="h-full w-full relative bg-background overflow-hidden font-sans">

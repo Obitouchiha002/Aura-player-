@@ -144,6 +144,16 @@ export const AudioEngine = memo(() => {
     }
   }, [isPlaying]);
 
+  useEffect(() => {
+    return () => {
+      if (mediaRef.current) {
+         mediaRef.current.pause();
+         mediaRef.current.removeAttribute('src');
+         mediaRef.current.load();
+      }
+    };
+  }, []);
+
   // Volume & Speed Sync
   useEffect(() => {
     if (mediaRef.current) {
@@ -155,14 +165,23 @@ export const AudioEngine = memo(() => {
   // Manual playback control to handle race conditions with React rendering
   useEffect(() => {
     const media = mediaRef.current;
-    if (!media || (!currentSongUrl && !currentSongFile)) return;
+    if (!media) return;
+
+    if (!currentSongUrl && !currentSongFile) {
+        media.pause();
+        media.removeAttribute('src');
+        return;
+    }
 
     const playMedia = async () => {
       try {
         if (isPlaying) {
-          // Check if readyState is sufficient before playing
-          if (media.readyState >= 2) {
-            await media.play();
+          const playPromise = media.play();
+          if (playPromise !== undefined) {
+             playPromise.catch(err => {
+                console.warn("Auto-play blocked or failed:", err);
+                // Usually this happens if user hasn't interacted with the document yet.
+             });
           }
         } else {
           media.pause();
@@ -175,8 +194,7 @@ export const AudioEngine = memo(() => {
     playMedia();
   }, [isPlaying, currentSongId, currentSongUrl, currentSongFile]);
 
-  if (!currentSongId || (!currentSongUrl && !currentSongFile)) return null;
-
+  // Important: Always render the media element to ensure clean control, just hide it if no song or unsupported
   const isVideo = currentSongMediaType === 'video';
   const objectFitClass = 
     videoAspectRatio === 'stretch' ? 'object-fill' : 
@@ -186,13 +204,18 @@ export const AudioEngine = memo(() => {
     videoAspectRatio === '16:9' ? { aspectRatio: '16/9', objectFit: 'cover' as any } :
     videoAspectRatio === '4:3' ? { aspectRatio: '4/3', objectFit: 'cover' as any } : {};
 
+  // If no song is loaded, we still render an empty disabled video element
+  if (!currentSongId || (!currentSongUrl && !currentSongFile)) {
+    return <video id="main-media" ref={mediaRef} className="hidden" />;
+  }
+
   return (
     <video
-      key={currentSongId} // KEY is critical to prevent "No supported source" errors when swapping media
       id="main-media"
       ref={mediaRef}
       src={currentSongUrl}
       playsInline
+      autoPlay={isPlaying}
       style={{
         ...aspectRatioStyle,
         transform: isLandscape && isVideo && isVideoUIOpen && window.innerWidth < window.innerHeight 
@@ -214,7 +237,7 @@ export const AudioEngine = memo(() => {
       onPause={() => setIsPlaying(false)}
       onWaiting={() => {
         console.log("Media waiting/buffering...");
-        setIsLoading(true);
+        // Removed aggressive setIsLoading(true) to avoid UI flicker
       }}
       onCanPlay={() => {
         console.log("Media can play now");
@@ -224,8 +247,8 @@ export const AudioEngine = memo(() => {
         }
       }}
       onLoadStart={() => {
-        console.log("Media load start:", currentSongUrl.substring(0, 30) + "...");
-        setIsLoading(true);
+        console.log("Media load start:", currentSongUrl?.substring(0, 30) + "...");
+        // Removed aggressive setIsLoading(true) to avoid UI flicker
       }}
       onError={(e) => {
         const error = e.currentTarget.error;
@@ -262,9 +285,25 @@ export const AudioEngine = memo(() => {
       onLoadedMetadata={(e) => {
         const duration = e.currentTarget.duration;
         setDuration(duration);
-        const song = usePlayerStore.getState().songs.find(s => s.id === currentSongId);
+        const store = usePlayerStore.getState();
+        const song = store.songs.find(s => s.id === currentSongId);
+        
+        let shouldResume = false;
         if (song?.lastPosition && song.lastPosition > 0) {
-          e.currentTarget.currentTime = song.lastPosition;
+          if (song.mediaType === 'audio' && duration <= 1800) {
+            shouldResume = false;
+          } else {
+            shouldResume = true;
+          }
+        }
+        
+        if (shouldResume) {
+          e.currentTarget.currentTime = song.lastPosition || 0;
+        } else {
+          e.currentTarget.currentTime = 0;
+          if (currentSongId) {
+            store.updateSongData(currentSongId, { lastPosition: 0 });
+          }
         }
         setIsLoading(false);
       }}

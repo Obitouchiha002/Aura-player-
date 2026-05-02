@@ -3,7 +3,7 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import { Play, Search, Filter, MoreVertical, Plus, ListMusic, Trash2, Music, Cloud, CloudOff, WifiOff, Loader2, CheckCircle2, Film } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { triggerHaptic } from '../lib/haptics';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Song } from '../types';
 
 const SyncIndicator = ({ status }: { status?: Song['syncStatus'] }) => {
@@ -22,7 +22,7 @@ const SyncIndicator = ({ status }: { status?: Song['syncStatus'] }) => {
 const AVAILABLE_TAGS = ['Happy 😊', 'Sad 😢', 'Nostalgic 🕰️', 'Energetic 🔥', 'Chill 🍃', 'Focus 🧠'];
 
 export function Library() {
-  const { songs, playlists, setCurrentSong, setIsPlaying, currentSongId, createPlaylist, deletePlaylist, addSongToPlaylist, removeSongFromPlaylist, deleteSong, setIsVideoUIOpen, isVideoEnabled } = usePlayerStore();
+  const { songs, playlists, setCurrentSong, setIsPlaying, currentSongId, createPlaylist, deletePlaylist, addSongToPlaylist, removeSongFromPlaylist, deleteSong, deleteSongs, setIsVideoUIOpen, isVideoEnabled } = usePlayerStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'songs' | 'playlists'>('songs');
@@ -51,7 +51,7 @@ export function Library() {
   };
 
   const deleteSelected = () => {
-    selectedSongIds.forEach(id => deleteSong(id));
+    deleteSongs(Array.from(selectedSongIds));
     exitSelectionMode();
   };
 
@@ -71,8 +71,10 @@ export function Library() {
       }
     });
     
-    toDelete.forEach(id => deleteSong(id));
-    triggerHaptic('heavy');
+    if (toDelete.length > 0) {
+      deleteSongs(toDelete);
+      triggerHaptic('heavy');
+    }
   };
 
   useEffect(() => {
@@ -360,10 +362,12 @@ export function Library() {
                         setIsSelectionMode(true);
                         toggleSelection(song.id);
                         triggerHaptic('heavy');
-                      }, 4000);
+                      }, 1000); // Changed to 1000ms (1 second) for better UX
                       (window as any).longPressTimer = timer;
                     }}
+                    onTouchMove={() => clearTimeout((window as any).longPressTimer)}
                     onTouchEnd={() => clearTimeout((window as any).longPressTimer)}
+                    onTouchCancel={() => clearTimeout((window as any).longPressTimer)}
                   >
                     {isSelectionMode && (
                       <input 
@@ -436,11 +440,12 @@ export function Library() {
 
                     {/* Song Context Menu */}
                     {songMenuOpen === song.id && (
-                      <div className="absolute right-2 top-0 mt-2 w-48 bg-surface border border-surface-foreground/10 rounded-xl shadow-2xl z-[100] py-1 animate-in fade-in zoom-in-95 slide-in-from-top-2">
-                        <div className="fixed inset-0 z-[-1]" onClick={() => setSongMenuOpen(null)} />
+                      <div className="absolute right-2 top-0 mt-2 w-48 bg-surface border border-surface-foreground/10 rounded-xl shadow-2xl z-[100] py-1 animate-in fade-in zoom-in-95 slide-in-from-top-2" onClick={e => e.stopPropagation()}>
+                        <div className="fixed inset-0 z-[-1]" onClick={(e) => { e.stopPropagation(); setSongMenuOpen(null); }} />
                         {activePlaylist ? (
                           <button 
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               triggerHaptic('medium');
                               removeSongFromPlaylist(activePlaylist, song.id);
                               setSongMenuOpen(null);
@@ -452,7 +457,8 @@ export function Library() {
                         ) : (
                           <>
                           <button 
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               triggerHaptic('heavy');
                               deleteSong(song.id);
                               setSongMenuOpen(null);
@@ -462,10 +468,16 @@ export function Library() {
                             Delete Song
                           </button>
                           <button 
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               triggerHaptic('heavy');
-                              const duplicates = songs.filter(s => s.title === song.title && s.artist === song.artist);
-                              duplicates.forEach(s => deleteSong(s.id));
+                              const targetTitle = song.title.toLowerCase().trim();
+                              const sameNameSongs = songs.filter(s => s.title.toLowerCase().trim() === targetTitle);
+                              if (sameNameSongs.length > 1) {
+                                // Keep the first one, delete the rest
+                                const toDelete = sameNameSongs.slice(1).map(s => s.id);
+                                deleteSongs(toDelete);
+                              }
                               setSongMenuOpen(null);
                             }}
                             className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-surface-foreground/5"
@@ -483,7 +495,8 @@ export function Library() {
                               playlists.map(p => (
                                 <button 
                                   key={p.id}
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     triggerHaptic('medium');
                                     addSongToPlaylist(p.id, song.id);
                                     setSongMenuOpen(null);

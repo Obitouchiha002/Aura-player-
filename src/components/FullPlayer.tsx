@@ -1,4 +1,5 @@
-import { ChevronDown, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Heart, BookOpen, Plus, X, AlignLeft, Loader2, Edit3, Check, Music, Download } from 'lucide-react';
+import { ChevronDown, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Heart, BookOpen, Plus, X, AlignLeft, Loader2, Edit3, Check, Music, Download, MoonStar, Clock, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
 import React, { useState, useEffect, useRef } from 'react';
@@ -81,13 +82,14 @@ export function FullPlayer({ onClose }: FullPlayerProps) {
     nextSong, prevSong, duration, seekTo, progress,
     isShuffle, toggleShuffle, repeatMode, toggleRepeat,
     favorites, toggleFavorite, updateSongData,
-    volume, setVolume
+    volume, setVolume, sleepTimerEndTime, setSleepTimer, setExactSleepTimer
   } = usePlayerStore(useShallow(state => ({
     songs: state.songs, currentSongId: state.currentSongId, isPlaying: state.isPlaying, setIsPlaying: state.setIsPlaying,
     nextSong: state.nextSong, prevSong: state.prevSong, duration: state.duration, seekTo: state.seekTo, progress: state.progress,
     isShuffle: state.isShuffle, toggleShuffle: state.toggleShuffle, repeatMode: state.repeatMode, toggleRepeat: state.toggleRepeat,
     favorites: state.favorites, toggleFavorite: state.toggleFavorite, updateSongData: state.updateSongData,
-    volume: state.volume, setVolume: state.setVolume
+    volume: state.volume, setVolume: state.setVolume,
+    sleepTimerEndTime: state.sleepTimerEndTime, setSleepTimer: state.setSleepTimer, setExactSleepTimer: state.setExactSleepTimer
   })));
   
   const currentSong = songs.find(s => s.id === currentSongId);
@@ -95,13 +97,34 @@ export function FullPlayer({ onClose }: FullPlayerProps) {
   const [showTagSelector, setShowTagSelector] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [showSleepTimer, setShowSleepTimer] = useState(false);
   const [isEditingLyrics, setIsEditingLyrics] = useState(false);
   const [lyricsText, setLyricsText] = useState('');
   const [isBroken, setIsBroken] = useState(false);
   const [showVolumePopup, setShowVolumePopup] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDownloaded, setIsDownloaded] = useState(false);
+  const [timerRemaining, setTimerRemaining] = useState<string | null>(null);
   const volumePopupTimeoutDelay = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!sleepTimerEndTime) {
+      setTimerRemaining(null);
+      return;
+    }
+    const updateTimerRemaining = () => {
+      const remainingMs = sleepTimerEndTime - Date.now();
+      if (remainingMs <= 0) {
+        setTimerRemaining(null);
+        return;
+      }
+      const mins = Math.floor(remainingMs / 60000);
+      setTimerRemaining(mins > 0 ? `${mins}m` : '<1m');
+    };
+    updateTimerRemaining();
+    const interval = setInterval(updateTimerRemaining, 10000);
+    return () => clearInterval(interval);
+  }, [sleepTimerEndTime]);
   
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number>(0);
@@ -208,6 +231,13 @@ export function FullPlayer({ onClose }: FullPlayerProps) {
   ];
   const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
 
+  useEffect(() => {
+    if (currentSong) {
+      setLyricsText(currentSong.lyrics || '');
+      setIsBroken(false);
+    }
+  }, [showLyrics, currentSong?.id]);
+
   if (!currentSong) return null;
 
   const isFavorite = favorites.includes(currentSong.id);
@@ -220,11 +250,6 @@ export function FullPlayer({ onClose }: FullPlayerProps) {
       updateSongData(currentSong.id, { tags: [...currentTags, tag] });
     }
   };
-
-  useEffect(() => {
-    setLyricsText(currentSong.lyrics || '');
-    setIsBroken(false);
-  }, [showLyrics, currentSong.id]);
 
   const saveLyrics = () => {
     updateSongData(currentSong.id, { lyrics: lyricsText });
@@ -280,7 +305,8 @@ export function FullPlayer({ onClose }: FullPlayerProps) {
             onClick={() => {
               triggerHaptic('light');
               setShowLyrics(!showLyrics);
-              setShowStory(false);
+              setShowDetails(false);
+              setShowSleepTimer(false);
             }}
             className={cn("p-2 rounded-full transition-all duration-300 active:scale-95 hover:scale-105", showLyrics ? "text-primary bg-primary/10" : "text-surface-foreground hover:bg-surface-foreground/5")}
           >
@@ -290,10 +316,28 @@ export function FullPlayer({ onClose }: FullPlayerProps) {
             onClick={() => {
               triggerHaptic('light');
               setShowDetails(!showDetails);
+              setShowLyrics(false);
+              setShowSleepTimer(false);
             }}
             className={cn("p-2 rounded-full transition-all duration-300 active:scale-95 hover:scale-105", showDetails ? "text-primary bg-primary/10" : "text-surface-foreground hover:bg-surface-foreground/5")}
           >
             <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+          <button 
+            onClick={() => {
+              triggerHaptic('light');
+              setShowSleepTimer(!showSleepTimer);
+              setShowDetails(false);
+              setShowLyrics(false);
+            }}
+            className={cn("p-2 rounded-full transition-all duration-300 active:scale-95 hover:scale-105 relative", sleepTimerEndTime ? "text-primary bg-primary/10" : "text-surface-foreground hover:bg-surface-foreground/5")}
+          >
+            <MoonStar className="w-5 h-5 sm:w-6 sm:h-6" />
+            {timerRemaining && (
+              <span className="absolute -bottom-2 -right-1 bg-surface border border-surface-foreground/20 text-[9px] font-bold px-1 rounded-full text-primary pointer-events-none">
+                {timerRemaining}
+              </span>
+            )}
           </button>
           <div className="w-px h-6 bg-surface-foreground/10 mx-1"></div>
           <button 
@@ -307,6 +351,90 @@ export function FullPlayer({ onClose }: FullPlayerProps) {
           </button>
         </div>
       </div>
+
+      {/* Sleep Timer Overlay */}
+      <AnimatePresence>
+        {showSleepTimer && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-surface border border-surface-foreground/10 rounded-3xl p-6 sm:p-8 w-full max-w-sm shadow-2xl relative"
+            >
+              <button 
+                onClick={() => { triggerHaptic('light'); setShowSleepTimer(false); }}
+                className="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-foreground/10 transition-colors"
+              >
+                <X className="w-5 h-5 text-surface-foreground" />
+              </button>
+              
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-primary/10 rounded-2xl text-primary">
+                  <MoonStar className="w-6 h-6 sm:w-8 sm:h-8" />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-surface-foreground">Sleep Timer</h3>
+                  <p className="text-sm text-surface-foreground/60">{timerRemaining ? `${timerRemaining} left` : 'Stop music automatically'}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {[15, 30, 45, 60].map(mins => (
+                  <button
+                    key={mins}
+                    onClick={() => { setSleepTimer(mins); triggerHaptic('light'); setShowSleepTimer(false); }}
+                    className="py-3 rounded-2xl bg-surface-foreground/5 hover:bg-primary/10 hover:text-primary text-surface-foreground font-bold transition-all duration-300 active:scale-95 text-sm sm:text-base border border-transparent hover:border-primary/20"
+                  >
+                    {mins} min
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative group rounded-2xl bg-surface-foreground/5 hover:bg-surface-foreground/10 transition-colors flex items-center justify-between px-4 py-3 cursor-pointer mb-4">
+                 <div className="flex items-center gap-3 text-surface-foreground/70 group-hover:text-primary transition-colors z-10 pointer-events-none">
+                   <Clock className="w-5 h-5" />
+                   <span className="text-sm font-bold uppercase tracking-wider">Set Exact Time</span>
+                 </div>
+                 <div className="flex items-center gap-1 z-10 pointer-events-none text-surface-foreground/40 group-hover:text-primary transition-colors relative">
+                   <ChevronRight className="w-5 h-5" />
+                 </div>
+                 <input
+                   type="time"
+                   onChange={(e) => {
+                     const timeString = e.target.value;
+                     if (!timeString) return;
+                     triggerHaptic('light');
+                     const [hours, minutes] = timeString.split(':').map(Number);
+                     const targetTime = new Date();
+                     targetTime.setHours(hours, minutes, 0, 0);
+                     if (targetTime.getTime() <= Date.now()) {
+                       targetTime.setDate(targetTime.getDate() + 1);
+                     }
+                     setExactSleepTimer(targetTime.getTime());
+                     setShowSleepTimer(false);
+                   }}
+                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                 />
+              </div>
+
+              {timerRemaining && (
+                <button 
+                  onClick={() => { setSleepTimer(null); triggerHaptic('light'); setShowSleepTimer(false); }} 
+                  className="w-full py-3 rounded-2xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white font-bold transition-all duration-300 active:scale-95 text-sm sm:text-base border border-red-500/20 shadow-sm"
+                >
+                  Turn Off Timer
+                </button>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Details Overlay */}
       {showDetails && (
@@ -429,7 +557,7 @@ export function FullPlayer({ onClose }: FullPlayerProps) {
         
         {/* Album Art Side */}
         <div 
-          className="flex-shrink-0 md:flex-1 w-full md:w-1/2 flex items-center justify-center px-8 py-2 md:py-8 lg:p-14 relative group"
+          className="flex-shrink-0 md:flex-1 w-full md:w-1/2 flex items-center justify-center px-8 py-2 md:py-8 lg:p-14 relative group touch-none"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}

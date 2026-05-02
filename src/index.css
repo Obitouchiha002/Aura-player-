@@ -46,6 +46,12 @@
   filter: brightness(var(--video-brightness));
 }
 
+html, body {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  touch-action: pan-x pan-y;
+}
+
 body {
   background-color: var(--background);
   color: var(--foreground);

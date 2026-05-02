@@ -30,6 +30,9 @@ interface PlayerState {
   isLandscape: boolean;
   brightness: number;
   
+  sleepTimerEndTime: number | null;
+  isShutdown: boolean;
+  
   // Actions
   initStore: () => Promise<void>;
   setSongs: (songs: Song[]) => void;
@@ -61,6 +64,11 @@ interface PlayerState {
   setBrightness: (brightness: number) => void;
   toggleOrientation: () => void;
   
+  setSleepTimer: (minutes: number | null) => void;
+  setExactSleepTimer: (timestamp: number) => void;
+  triggerShutdown: () => void;
+  resetShutdown: () => void;
+  
   clearData: () => void;
   nextSong: () => void;
   prevSong: () => void;
@@ -70,6 +78,7 @@ interface PlayerState {
   removeSongFromPlaylist: (playlistId: string, songId: string) => void;
   deletePlaylist: (playlistId: string) => void;
   deleteSong: (songId: string) => void;
+  deleteSongs: (songIds: string[]) => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -98,6 +107,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isSwitchingMode: false,
   isLandscape: false,
   brightness: 1,
+  sleepTimerEndTime: null,
+  isShutdown: false,
 
   initStore: async () => {
     const songs = await loadSongsFromDB();
@@ -252,6 +263,48 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
   
+  setSleepTimer: (minutes) => {
+    if (minutes === null) {
+      set({ sleepTimerEndTime: null });
+    } else {
+      set({ sleepTimerEndTime: Date.now() + minutes * 60 * 1000 });
+    }
+  },
+  setExactSleepTimer: (timestamp) => {
+    set({ sleepTimerEndTime: timestamp });
+  },
+  triggerShutdown: () => {
+    set({ isShutdown: true, isVideoUIOpen: false, sleepTimerEndTime: null });
+    
+    const media = document.getElementById('main-media') as HTMLMediaElement;
+    if (media) {
+      // Fade out volume over 3 seconds
+      const startVolume = media.volume;
+      const fadeInterval = setInterval(() => {
+        if (media.volume > 0.05) {
+          media.volume -= 0.05;
+        } else {
+          media.volume = 0;
+          clearInterval(fadeInterval);
+        }
+      }, 150); // 150ms * 20 steps = 3000ms
+    }
+
+    setTimeout(() => {
+      set({ isPlaying: false, currentSongId: null });
+      if (media) {
+         media.pause();
+         media.removeAttribute('src');
+      }
+      setTimeout(() => {
+        try {
+          window.close();
+        } catch(e) {}
+      }, 1000);
+    }, 3000);
+  },
+  resetShutdown: () => set({ isShutdown: false }),
+  
   clearData: () => {
     clearDB();
     set({ songs: [], playlists: [], currentSongId: null, isPlaying: false, favorites: [] });
@@ -339,6 +392,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       const updatedPlaylists = state.playlists.map(p => ({
         ...p,
         songIds: p.songIds.filter(id => id !== songId)
+      }));
+      saveSongsToDB(updatedSongs);
+      return { songs: updatedSongs, playlists: updatedPlaylists };
+    });
+  },
+  deleteSongs: (songIds: string[]) => {
+    set(state => {
+      const updatedSongs = state.songs.filter(s => !songIds.includes(s.id));
+      const updatedPlaylists = state.playlists.map(p => ({
+        ...p,
+        songIds: p.songIds.filter(id => !songIds.includes(id))
       }));
       saveSongsToDB(updatedSongs);
       return { songs: updatedSongs, playlists: updatedPlaylists };
