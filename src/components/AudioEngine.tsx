@@ -10,6 +10,7 @@ const mediaSelector = (state: any) => {
     currentSongId: state.currentSongId,
     isPlaying: state.isPlaying,
     volume: state.volume,
+    volumeBoost: state.volumeBoost,
     duration: state.duration,
     playbackSpeed: state.playbackSpeed,
     isVideoUIOpen: state.isVideoUIOpen,
@@ -31,7 +32,7 @@ const mediaSelector = (state: any) => {
 export const AudioEngine = memo(() => {
   const mediaRef = useRef<HTMLVideoElement>(null);
   const { 
-    currentSongId, isPlaying, volume, duration, playbackSpeed, isVideoUIOpen, 
+    currentSongId, isPlaying, volume, volumeBoost, duration, playbackSpeed, isVideoUIOpen, 
     videoAspectRatio, subtitleUrl, isLandscape, isDarkMode, currentMood,
     currentSongUrl, currentSongFile, currentSongTitle, currentSongArtist, currentSongAlbum, currentSongCoverArt, currentSongMediaType
   } = usePlayerStore(useShallow(mediaSelector));
@@ -41,76 +42,25 @@ export const AudioEngine = memo(() => {
   const lastMediaSessionUpdate = useRef(0);
 
   // Media Session Setup
+  // The latest song id that had a drawn media session
+  const activeMediaSessionSongId = useRef<string | null>(null);
+
   useEffect(() => {
     let active = true;
 
+    const handleBeforeUnload = () => {
+      const state = usePlayerStore.getState();
+      if (mediaRef.current && state.currentSongId) {
+        state.updateSongData(state.currentSongId, { lastPosition: mediaRef.current.currentTime });
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     const setupMediaSession = async () => {
+      // Don't rerun heavy canvas operations if we are already showing this song
       if (!currentSongId || (!currentSongUrl && !currentSongFile) || !('mediaSession' in navigator)) return;
-
-      // Create a plain Orange and White fallback background
-      const canvas = document.createElement('canvas');
-      canvas.width = 512;
-      canvas.height = 512;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#FF8C42'; // Plain Orange
-        ctx.fillRect(0, 0, 512, 512);
-        ctx.fillStyle = '#FFFFFF'; // White text
-        ctx.font = 'bold 80px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const fallbackText = currentSongMediaType === 'video' ? 'VIDEO' : 'MUSIC';
-        ctx.fillText(fallbackText, 256, 256);
-      }
-      const defaultArtBase64 = canvas.toDataURL('image/jpeg', 0.8);
-
-      let finalArtworkSrc = defaultArtBase64;
-
-      // Mobile OSs (like Android) block or fail to read blob: URIs in MediaSession.
-      // Additionally, Base64 strings that are too large (e.g. from high-res embedded MP3 art)
-      // will fail Android's 1MB Binder transaction limit.
-      // To fix this, we load the image, resize it to 512x512, and then convert to Base64.
-      if (currentSongCoverArt) {
-        try {
-          const img = new Image();
-          img.crossOrigin = 'anonymous'; // Help prevent canvas tainting just in case
-          img.src = currentSongCoverArt;
-          
-          await new Promise((resolve, reject) => {
-            img.onload = resolve;
-            img.onerror = reject;
-          });
-
-          // Resize to safe limits for MediaSession Base64 IPC
-          const size = 512;
-          const rescaleCanvas = document.createElement('canvas');
-          rescaleCanvas.width = size;
-          rescaleCanvas.height = size;
-          const resCtx = rescaleCanvas.getContext('2d');
-          
-          if (resCtx && active) {
-            // Draw image covering the canvas
-            resCtx.drawImage(img, 0, 0, size, size);
-            finalArtworkSrc = rescaleCanvas.toDataURL('image/jpeg', 0.8);
-          }
-        } catch (e) {
-          console.error('Failed to resize and prepare active artwork for MediaSession', e);
-          if (active) finalArtworkSrc = defaultArtBase64;
-        }
-      }
-
-      if (!active) return;
-
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: currentSongTitle,
-        artist: currentSongArtist,
-        album: currentSongAlbum || (currentMood ? `Aura • ${currentMood}` : 'Aura Music'),
-        artwork: [
-          { src: finalArtworkSrc, sizes: '512x512', type: 'image/jpeg' },
-          { src: finalArtworkSrc, sizes: '192x192', type: 'image/jpeg' }
-        ]
-      });
-
+      
+      // Update action handlers first as they change based on playback
       navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true));
       navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false));
       navigator.mediaSession.setActionHandler('previoustrack', () => prevSong());
@@ -129,14 +79,80 @@ export const AudioEngine = memo(() => {
         const skipTime = details.seekOffset || 10;
         if (mediaRef.current) mediaRef.current.currentTime = Math.min(mediaRef.current.currentTime + skipTime, mediaRef.current.duration);
       });
+
+      if (activeMediaSessionSongId.current === currentSongId) {
+         return; // Skip artwork computation if song didn't change
+      }
+      activeMediaSessionSongId.current = currentSongId;
+
+      // Mobile OSs block blob: URIs and large Base64 in MediaSession.
+      // Setup default artwork
+      let finalArtworkSrc = '';
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#FF8C42';
+          ctx.fillRect(0, 0, 512, 512);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 80px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(currentSongMediaType === 'video' ? 'VIDEO' : 'MUSIC', 256, 256);
+        }
+        finalArtworkSrc = canvas.toDataURL('image/jpeg', 0.8);
+      } catch (e) {
+        console.error(e);
+      }
+
+      if (currentSongCoverArt) {
+        try {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = currentSongCoverArt;
+          
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+          });
+
+          const size = 512;
+          const rescaleCanvas = document.createElement('canvas');
+          rescaleCanvas.width = size;
+          rescaleCanvas.height = size;
+          const resCtx = rescaleCanvas.getContext('2d');
+          
+          if (resCtx && active) {
+            resCtx.drawImage(img, 0, 0, size, size);
+            finalArtworkSrc = rescaleCanvas.toDataURL('image/jpeg', 0.8);
+          }
+        } catch (e) {
+          console.error('Failed to resize active artwork for MediaSession', e);
+        }
+      }
+
+      if (!active) return;
+
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentSongTitle,
+        artist: currentSongArtist,
+        album: currentSongAlbum || (currentMood ? `Aura • ${currentMood}` : 'Aura Music'),
+        artwork: finalArtworkSrc ? [
+          { src: finalArtworkSrc, sizes: '512x512', type: 'image/jpeg' },
+          { src: finalArtworkSrc, sizes: '192x192', type: 'image/jpeg' }
+        ] : []
+      });
     };
 
     setupMediaSession();
 
     return () => {
       active = false;
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [currentSongId, currentSongUrl, currentSongFile, currentSongTitle, currentSongArtist, currentSongAlbum, currentSongCoverArt, nextSong, prevSong, setIsPlaying, setProgress, isDarkMode, currentMood, currentSongMediaType]);
+  }, [currentSongId, currentSongUrl, currentSongFile, currentSongTitle, currentSongArtist, currentSongAlbum, currentSongCoverArt, nextSong, prevSong, setIsPlaying, setProgress, currentMood, currentSongMediaType]);
 
   useEffect(() => {
     if ('mediaSession' in navigator) {
@@ -154,13 +170,46 @@ export const AudioEngine = memo(() => {
     };
   }, []);
 
-  // Volume & Speed Sync
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+
+  // Initialize Web Audio API ONLY when volumeBoost > 1 to avoid severe performance issues / stuttering on mobile
+  useEffect(() => {
+    if (isPlaying && volumeBoost > 1.0 && mediaRef.current && !audioCtxRef.current) {
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioContextClass();
+        audioCtxRef.current = ctx;
+
+        const gainNode = ctx.createGain();
+        gainNode.connect(ctx.destination);
+        gainNodeRef.current = gainNode;
+
+        const source = ctx.createMediaElementSource(mediaRef.current);
+        source.connect(gainNode);
+        sourceNodeRef.current = source;
+      } catch (err) {
+        console.warn("Failed to initialize AudioContext for volume boost:", err);
+      }
+    }
+    
+    if (isPlaying && volumeBoost > 1.0 && audioCtxRef.current?.state === 'suspended') {
+      audioCtxRef.current.resume().catch(e => console.warn(e));
+    }
+  }, [isPlaying, volumeBoost]);
+
+  // Volume, Boost & Speed Sync
   useEffect(() => {
     if (mediaRef.current) {
       mediaRef.current.volume = volume;
       mediaRef.current.playbackRate = playbackSpeed;
     }
-  }, [volume, playbackSpeed]);
+    if (gainNodeRef.current && audioCtxRef.current) {
+      // Apply extra volume multiplier
+      gainNodeRef.current.gain.setTargetAtTime(volumeBoost || 1, audioCtxRef.current.currentTime, 0.1);
+    }
+  }, [volume, volumeBoost, playbackSpeed]);
 
   // Manual playback control to handle race conditions with React rendering
   useEffect(() => {
@@ -235,8 +284,24 @@ export const AudioEngine = memo(() => {
       )}
       onPlay={() => setIsPlaying(true)}
       onPause={(e) => {
-        if (e.currentTarget.readyState >= 2) {
-          setIsPlaying(false);
+        // Save current progress aggressively for memory
+        if (currentSongId && e.currentTarget.currentTime > 0) {
+           usePlayerStore.getState().updateSongData(currentSongId, { lastPosition: e.currentTarget.currentTime });
+        }
+        
+        if (e.currentTarget.readyState >= 2 && !e.currentTarget.ended) {
+          // Ignore transient pauses caused by source changes
+          setTimeout(() => {
+            if (mediaRef.current?.paused && usePlayerStore.getState().isPlaying) {
+              const currentSrc = mediaRef.current.src;
+              // Only pause state if the src hasn't changed or isn't changing
+              if (currentSrc && !currentSrc.startsWith('blob:')) {
+                 usePlayerStore.getState().setIsPlaying(false);
+              } else if (mediaRef.current?.readyState >= 2) {
+                 usePlayerStore.getState().setIsPlaying(false);
+              }
+            }
+          }, 150);
         }
       }}
       onWaiting={() => {

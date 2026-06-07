@@ -72,8 +72,8 @@ export function Home() {
       const isMassImport = files.length > 5;
       
       if (isAudio || isVideo) {
-        // Check for duplicates based on name and size
-        const isDuplicate = songs.some(s => s.title === file.name.replace(/\.[^/.]+$/, "") && s.file?.size === file.size);
+        // Check for duplicates robustly (by exact size or exact name to prevent re-adding)
+        const isDuplicate = songs.some(s => (s.file?.size === file.size && s.file?.name === file.name) || (s.title === file.name.replace(/\.[^/.]+$/, "") && s.file?.size === file.size));
         if (isDuplicate) continue;
 
         if (isVideo) {

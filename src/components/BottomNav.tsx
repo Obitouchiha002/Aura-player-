@@ -1,4 +1,4 @@
-import { Home, Library, Settings, Sparkles } from 'lucide-react';
+import { Home, Library, Settings } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { triggerHaptic } from '../lib/haptics';
 

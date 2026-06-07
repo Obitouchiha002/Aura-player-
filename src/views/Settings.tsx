@@ -11,7 +11,8 @@ export function Settings() {
     hapticIntensity, setHapticIntensity,
     isVideoEnabled, switchVideoMode,
     clearData,
-    sleepTimerEndTime, setSleepTimer
+    sleepTimerEndTime, setSleepTimer,
+    volumeBoost, setVolumeBoost
   } = usePlayerStore();
   const [now, setNow] = useState(Date.now());
 
@@ -92,6 +93,39 @@ export function Settings() {
               >
                 <div className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform ${isVideoEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
+            </div>
+            
+            <div className="flex flex-col p-4 border-b border-surface-foreground/5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-accent rounded-xl text-surface-foreground">
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="font-medium text-surface-foreground block">Audio Loudness Boost</span>
+                    <span className="text-xs text-surface-foreground/50">Boost quiet tracks over 100% via WebAudio API</span>
+                  </div>
+                </div>
+                <div className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">
+                  {volumeBoost}x
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {[1, 1.5, 2, 3].map((mult) => (
+                  <button
+                    key={mult}
+                    onClick={() => { triggerHaptic('medium'); setVolumeBoost(mult); }}
+                    className={cn(
+                      "flex-1 py-2 rounded-xl text-xs font-bold uppercase transition-all duration-300",
+                      volumeBoost === mult 
+                        ? "bg-primary text-white shadow-md scale-105" 
+                        : "bg-accent text-surface-foreground hover:bg-surface-foreground/10"
+                    )}
+                  >
+                    {mult === 1 ? 'OFF' : `${mult}X Boost`}
+                  </button>
+                ))}
+              </div>
             </div>
             
             <div className="flex flex-col p-4 border-b border-surface-foreground/5">

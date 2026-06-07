@@ -8,6 +8,7 @@ interface PlayerState {
   currentSongId: string | null;
   isPlaying: boolean;
   volume: number;
+  volumeBoost: number;
   progress: number;
   duration: number;
   isShuffle: boolean;
@@ -43,6 +44,7 @@ interface PlayerState {
   setIsPlaying: (isPlaying: boolean) => void;
   setIsLoading: (isLoading: boolean) => void;
   setVolume: (volume: number) => void;
+  setVolumeBoost: (boost: number) => void;
   setProgress: (progress: number) => void;
   setDuration: (duration: number) => void;
   toggleShuffle: () => void;
@@ -87,6 +89,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentSongId: null,
   isPlaying: false,
   volume: Number(localStorage.getItem('aura_volume')) || 1,
+  volumeBoost: Number(localStorage.getItem('aura_volume_boost')) || 1,
   progress: 0,
   duration: 0,
   isShuffle: false,
@@ -158,6 +161,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setVolume: (volume) => {
     localStorage.setItem('aura_volume', volume.toString());
     set({ volume });
+  },
+  setVolumeBoost: (volumeBoost) => {
+    localStorage.setItem('aura_volume_boost', volumeBoost.toString());
+    set({ volumeBoost });
   },
   setProgress: (progress) => set({ progress }),
   setDuration: (duration) => set({ duration }),

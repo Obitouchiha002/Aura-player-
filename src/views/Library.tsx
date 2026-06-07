@@ -56,18 +56,19 @@ export function Library() {
   };
 
   const deleteDuplicates = () => {
-    const seenTitles = new Set<string>();
+    const seenFiles = new Set<string>();
     const toDelete: string[] = [];
     
     [...songs].forEach(song => {
       const isCorrectType = isVideoEnabled ? song.mediaType === 'video' : song.mediaType === 'audio';
       if (!isCorrectType) return;
       
-      const titleKey = song.title.toLowerCase().trim();
-      if (seenTitles.has(titleKey)) {
+      // Use robust composite key of title, size, and artist to find true duplicates
+      const key = `${song.title.toLowerCase().trim()}_${song.file?.size || 0}`;
+      if (seenFiles.has(key)) {
         toDelete.push(song.id);
       } else {
-        seenTitles.add(titleKey);
+        seenFiles.add(key);
       }
     });
     
@@ -471,8 +472,11 @@ export function Library() {
                             onClick={(e) => {
                               e.stopPropagation();
                               triggerHaptic('heavy');
-                              const targetTitle = song.title.toLowerCase().trim();
-                              const sameNameSongs = songs.filter(s => s.title.toLowerCase().trim() === targetTitle);
+                              const targetKey = `${song.title.toLowerCase().trim()}_${song.file?.size || 0}`;
+                              const sameNameSongs = songs.filter(s => {
+                                const key = `${s.title.toLowerCase().trim()}_${s.file?.size || 0}`;
+                                return key === targetKey;
+                              });
                               if (sameNameSongs.length > 1) {
                                 // Keep the first one, delete the rest
                                 const toDelete = sameNameSongs.slice(1).map(s => s.id);

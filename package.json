@@ -8,9 +8,18 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "android:init": "cap init",
+    "android:add": "cap add android",
+    "android:copy": "cap copy",
+    "android:sync": "cap sync",
+    "android:open": "cap open android",
+    "android:build": "vite build && cap sync"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
     "@google/genai": "^1.50.1",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",

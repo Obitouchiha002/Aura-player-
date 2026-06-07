@@ -1,71 +1,65 @@
 import React, { useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 
-// We need to keep the AudioContext outside so it's not recreated
-let audioCtx: AudioContext | null = null;
-let analyser: AnalyserNode | null = null;
-let source: MediaElementAudioSourceNode | null = null;
-
 export function Visualizer() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { isPlaying } = usePlayerStore();
   const requestRef = useRef<number>();
+  const timeRef = useRef<number>(0);
 
   useEffect(() => {
-    const audioElement = document.getElementById('main-media') as HTMLMediaElement;
-    if (!audioElement) return;
-
-    if (!audioCtx) {
-      try {
-        audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        analyser = audioCtx.createAnalyser();
-        source = audioCtx.createMediaElementSource(audioElement);
-        source.connect(analyser);
-        analyser.connect(audioCtx.destination);
-        analyser.fftSize = 256;
-      } catch (e) {
-        console.error("AudioContext error", e);
-      }
-    }
-
-    if (audioCtx && audioCtx.state === 'suspended' && isPlaying) {
-      audioCtx.resume();
-    }
-
     const canvas = canvasRef.current;
-    if (!canvas || !analyser) return;
+    if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+    const bufferLength = 64; // Fewer bars for performance
 
     const renderFrame = () => {
-      if (!canvas || !ctx || !analyser) return;
+      if (!canvas || !ctx) return;
 
       requestRef.current = requestAnimationFrame(renderFrame);
-
-      analyser.getByteFrequencyData(dataArray);
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const barWidth = (canvas.width / bufferLength) * 2.5;
-      let barHeight;
       let x = 0;
 
+      // Update time for animation
+      if (isPlaying) {
+        timeRef.current += 0.05;
+      }
+      
+      const time = timeRef.current;
+
       for (let i = 0; i < bufferLength; i++) {
-        barHeight = dataArray[i] / 2;
+        // Procedural wave that looks like music (combines sine waves and randomness)
+        let barHeight = 2; // default min height
+
+        if (isPlaying) {
+          const wave1 = Math.sin(i * 0.2 + time) * 30;
+          const wave2 = Math.cos(i * 0.1 - time * 0.8) * 20;
+          const noise = Math.random() * 15;
+          
+          // Add a beat pulse effect
+          const beat = Math.sin(time * 2) > 0.8 ? 20 : 0;
+          
+          barHeight = Math.max(2, wave1 + wave2 + noise + beat + 30);
+          
+          // Dampen edges
+          const edgeDampen = 1 - Math.abs((i - bufferLength / 2) / (bufferLength / 2));
+          barHeight *= (0.2 + edgeDampen * 0.8);
+        }
 
         // Soft pastel orange color
-        ctx.fillStyle = `rgba(232, 141, 103, ${barHeight / 150})`;
+        ctx.fillStyle = `rgba(232, 141, 103, ${Math.min(1, barHeight / 100)})`;
         
-        // Draw rounded bars
         ctx.beginPath();
-        ctx.roundRect(x, canvas.height - barHeight, barWidth - 2, barHeight, 4);
+        ctx.roundRect(x, canvas.height - barHeight, barWidth - 1, barHeight, 4);
         ctx.fill();
 
-        x += barWidth + 1;
+        x += barWidth;
       }
     };
 
